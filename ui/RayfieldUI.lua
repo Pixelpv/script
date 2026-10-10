@@ -24,7 +24,14 @@ FarmTab:CreateToggle({
 })
 FarmTab:CreateToggle({
     Name = "Auto Quest", CurrentValue = false, Flag = "AutoQuest",
-    Callback = function(v) NS.Config.autoQuest = v end,
+    Callback = function(v)
+        NS.Config.autoQuest = v
+        -- Se o farm já está ligado, força reavaliação
+        if NS.Config.autoFarmLevel then
+            NS.StateManager.currentState = "SEEKING_TARGET"  -- força saída
+            NS.StateManager.setState("CHECKING_LEVEL")
+        end
+    end,
 })
 FarmTab:CreateToggle({
     Name = "Auto Skill (Z X C V)", CurrentValue = false, Flag = "AutoSkill",
