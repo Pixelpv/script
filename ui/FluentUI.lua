@@ -19,12 +19,9 @@ local Tabs = {
     Config = Window:AddTab({ Title = "Config", Icon = "settings" }),
 }
 
--- ============================================================
--- ABA: FARM
--- ============================================================
 local MainFarmGroup = Tabs.Farm:AddSection("Main farm")
 
-local FarmLevelToggle = MainFarmGroup:AddToggle("AutoFarmLevel", {
+MainFarmGroup:AddToggle("AutoFarmLevel", {
     Title = "Farm Level",
     Default = false,
     Callback = function(value)
@@ -39,7 +36,7 @@ local FarmLevelToggle = MainFarmGroup:AddToggle("AutoFarmLevel", {
     end,
 })
 
-local AutoQuestToggle = MainFarmGroup:AddToggle("AutoQuest", {
+MainFarmGroup:AddToggle("AutoQuest", {
     Title = "Auto Quest",
     Default = false,
     Callback = function(value)
@@ -51,7 +48,7 @@ local AutoQuestToggle = MainFarmGroup:AddToggle("AutoQuest", {
     end,
 })
 
-local FarmNearestToggle = MainFarmGroup:AddToggle("FarmNearest", {
+MainFarmGroup:AddToggle("FarmNearest", {
     Title = "Farm Nearest",
     Default = false,
     Callback = function(value)
@@ -59,12 +56,9 @@ local FarmNearestToggle = MainFarmGroup:AddToggle("FarmNearest", {
     end,
 })
 
--- ============================================================
--- ABA: CONFIG
--- ============================================================
 local FarmConfigGroup = Tabs.Config:AddSection("Farm config")
 
-local WeaponDropdown = FarmConfigGroup:AddDropdown("SelectWeapon", {
+FarmConfigGroup:AddDropdown("SelectWeapon", {
     Title = "Select Weapon",
     Values = { "Sword", "Melee", "Gun", "Blox Fruit" },
     Default = "Melee",
@@ -74,7 +68,7 @@ local WeaponDropdown = FarmConfigGroup:AddDropdown("SelectWeapon", {
     end,
 })
 
-local AutoEquipToggle = FarmConfigGroup:AddToggle("AutoEquip", {
+FarmConfigGroup:AddToggle("AutoEquip", {
     Title = "Auto Equip",
     Default = false,
     Callback = function(value)
@@ -82,7 +76,7 @@ local AutoEquipToggle = FarmConfigGroup:AddToggle("AutoEquip", {
     end,
 })
 
-local BringMobToggle = FarmConfigGroup:AddToggle("BringMob", {
+FarmConfigGroup:AddToggle("BringMob", {
     Title = "Bring Mob",
     Default = false,
     Callback = function(value)
@@ -90,7 +84,7 @@ local BringMobToggle = FarmConfigGroup:AddToggle("BringMob", {
     end,
 })
 
-local FarmDistanceSlider = FarmConfigGroup:AddSlider("FarmDistance", {
+FarmConfigGroup:AddSlider("FarmDistance", {
     Title = "Farm Distance",
     Default = 25,
     Min = 5,
@@ -101,7 +95,7 @@ local FarmDistanceSlider = FarmConfigGroup:AddSlider("FarmDistance", {
     end,
 })
 
-local FastAttackToggle = FarmConfigGroup:AddToggle("FastAttack", {
+FarmConfigGroup:AddToggle("FastAttack", {
     Title = "Fast Attack",
     Default = false,
     Callback = function(value)
@@ -109,7 +103,7 @@ local FastAttackToggle = FarmConfigGroup:AddToggle("FastAttack", {
     end,
 })
 
-local FarmHeightSlider = FarmConfigGroup:AddSlider("FarmHeight", {
+FarmConfigGroup:AddSlider("FarmHeight", {
     Title = "Farm Height",
     Default = 25,
     Min = 5,
@@ -121,21 +115,6 @@ local FarmHeightSlider = FarmConfigGroup:AddSlider("FarmHeight", {
     end,
 })
 
-local FarmRangeSlider = FarmConfigGroup:AddSlider("FarmRange", {
-    Title = "Farm Range",
-    Default = 50,
-    Min = 10,
-    Max = 200,
-    Rounding = 0,
-    Callback = function(value)
-        NS.Config.farmRange = value
-        NS.Config.killAuraRange = value
-    end,
-})
-
--- ============================================================
--- Status no rodapé da janela
--- ============================================================
 task.spawn(function()
     while true do
         task.wait(1)
@@ -145,9 +124,7 @@ task.spawn(function()
             local state = NS.StateManager.getState()
             Window:SetSubTitle(string.format(
                 "Lv. %d | %s | %s",
-                lvl,
-                state,
-                q and q.quest or "--"
+                lvl, state, q and q.quest or "--"
             ))
         end)
     end
@@ -161,7 +138,6 @@ InterfaceManager:SetFolder("AutoFarmBF")
 SaveManager:SetFolder("AutoFarmBF/Configs")
 SaveManager:BuildConfigSection(Tabs.Config)
 InterfaceManager:ApplyToTab(Tabs.Config)
-
 SaveManager:LoadAutoloadConfig()
 
 Fluent:Notify({
