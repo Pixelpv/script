@@ -54,6 +54,6 @@ NS.QuestManager.init()
 NS.StateManager.init()
 
 -- UI
-load("ui/RayfieldUI.lua")
+load("ui/FluentUI.lua")
 
 NS.Logger.log("Sistema inicializado")
