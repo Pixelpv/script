@@ -1,23 +1,18 @@
 return {
-    -- Farm
     autoFarmLevel = false,
     autoQuest = false,
     farmNearest = false,
-    
-    -- Combate
+
     selectWeapon = "Melee",
     autoEquip = false,
     bringMob = false,
     farmDistance = 25,
     fastAttack = false,
     farmHeight = 25,
-    farmRange = 50,
-    
-    -- Legado (mantidos pra compatibilidade)
+
     autoSkill = false,
     killAura = false,
     attackDelay = 0.1,
-    killAuraRange = 50,
     skillDelay = 0.8,
     hoverHeight = 25,
     hoverEnabled = true,
