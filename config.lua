@@ -1,0 +1,18 @@
+return {
+    autoFarmLevel = false,
+    autoQuest = false,
+    autoSkill = false,
+    killAura = false,
+    attackDelay = 0.1,
+    killAuraRange = 50,
+    skillDelay = 0.8,
+    hoverHeight = 25,
+    hoverEnabled = true,
+    autoCollectFruit = false,
+    autoCollectTool = false,
+    collectRange = 300,
+    flyEnabled = false,
+    flySpeed = 80,
+    flyHeight = 50,
+    debug = false,
+}
