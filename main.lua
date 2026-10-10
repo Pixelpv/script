@@ -12,6 +12,11 @@ local function load(path)
 end
 
 NS.Config          = load("config.lua")
+
+NS.Data            = NS.Data or {}
+NS.Data.Quests     = load("data/quests.lua")
+NS.Data.Islands    = load("data/islands.lua")
+NS.Data.Tools      = load("data/tools.lua")
 NS.Logger          = load("modules/Logger.lua")
 NS.HealthManager   = load("modules/HealthManager.lua")
 NS.LevelManager    = load("modules/LevelManager.lua")
