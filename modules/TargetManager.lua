@@ -4,85 +4,67 @@ local player = Players.LocalPlayer
 
 local TargetManager = {}
 
--- Coleta mobs de vários containers possíveis
-local function getAllMobs()
-    local mobs = {}
-    local seen = {}
+local EnemiesFolder = workspace:WaitForChild("Enemies")
 
-    local function scan(container)
-        if not container then return end
-        for _, obj in ipairs(container:GetChildren()) do
-            if not seen[obj] and obj:FindFirstChild("Humanoid") then
-                seen[obj] = true
-                table.insert(mobs, obj)
-            end
-            -- Se for Model/Folder, varre um nível abaixo
-            if (obj:IsA("Model") or obj:IsA("Folder")) and not obj:FindFirstChild("Humanoid") then
-                for _, child in ipairs(obj:GetChildren()) do
-                    if not seen[child] and child:FindFirstChild("Humanoid") then
-                        seen[child] = true
-                        table.insert(mobs, child)
-                    end
+local function isValidEnemy(enemy)
+    local humanoid = enemy:FindFirstChildOfClass("Humanoid")
+    local root = enemy:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not root then return false end
+    if humanoid.Health <= 0 then return false end
+    if enemy == player.Character then return false end
+    if Players:GetPlayerFromCharacter(enemy) then return false end
+    return true
+end
+
+local function scanEnemies(origin, maxDistance, nameFilter)
+    if not origin then return nil, math.huge end
+    local nearest, nearestDist = nil, maxDistance or math.huge
+    local lowerFilter = nameFilter and nameFilter:lower() or nil
+
+    for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
+        if isValidEnemy(enemy) then
+            local root = enemy.HumanoidRootPart
+            local distance = (root.Position - origin).Magnitude
+            if distance < nearestDist then
+                if not lowerFilter or enemy.Name:lower():find(lowerFilter, 1, true) then
+                    nearestDist = distance
+                    nearest = enemy
                 end
             end
         end
     end
 
-    scan(workspace)
-    scan(workspace:FindFirstChild("Enemies"))
-    scan(workspace:FindFirstChild("Characters"))
-    scan(workspace:FindFirstChild("NPCs"))
-
-    return mobs
+    return nearest, nearestDist
 end
 
-TargetManager.getAllMobs = getAllMobs
-
-function TargetManager.isValidTarget(mob)
-    return mob:FindFirstChild("Humanoid")
-       and mob:FindFirstChild("HumanoidRootPart")
-       and mob.Humanoid.Health > 0
-       and mob ~= player.Character
-       and not Players:GetPlayerFromCharacter(mob)
-end
-
-function TargetManager.findNearest()
+function TargetManager.findNearest(maxDistance)
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return nil end
-    local best, bestDist = nil, math.huge
-    for _, mob in ipairs(getAllMobs()) do
-        if TargetManager.isValidTarget(mob) then
-            local dist = (mob.HumanoidRootPart.Position - hrp.Position).Magnitude
-            if dist < bestDist then best, bestDist = mob, dist end
-        end
-    end
-    return best, bestDist
+    return scanEnemies(hrp.Position, maxDistance)
 end
 
-function TargetManager.findNearestQuestEnemy(enemyName)
+function TargetManager.findNearestQuestEnemy(enemyName, maxDistance)
+    if not enemyName then return TargetManager.findNearest(maxDistance) end
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return nil end
-    local best, bestDist = nil, math.huge
-    for _, mob in ipairs(getAllMobs()) do
-        if TargetManager.isValidTarget(mob) and mob.Name:lower():find(enemyName:lower()) then
-            local dist = (mob.HumanoidRootPart.Position - hrp.Position).Magnitude
-            if dist < bestDist then best, bestDist = mob, dist end
-        end
-    end
-    return best, bestDist
+    return scanEnemies(hrp.Position, maxDistance, enemyName)
 end
 
 function TargetManager.getTargetsInRange(range)
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return {} end
     local list = {}
-    for _, mob in ipairs(getAllMobs()) do
-        if TargetManager.isValidTarget(mob) then
-            local dist = (mob.HumanoidRootPart.Position - hrp.Position).Magnitude
-            if dist <= range then table.insert(list, mob) end
+    for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
+        if isValidEnemy(enemy) then
+            local dist = (enemy.HumanoidRootPart.Position - hrp.Position).Magnitude
+            if dist <= range then table.insert(list, enemy) end
         end
     end
     return list
+end
+
+TargetManager.GetNearestEnemy = function(origin, maxDistance)
+    return scanEnemies(origin, maxDistance)
 end
 
 return TargetManager
