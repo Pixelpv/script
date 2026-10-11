@@ -6,7 +6,6 @@ local farmThread = nil
 local farmRunning = false
 local currentMob = nil
 local lastAcceptTime = 0
-local lastAbandonTime = 0
 local lastBringTime = 0
 
 function FarmLevel.init(deps)
@@ -77,7 +76,6 @@ local function goToMob(mob)
     if not hrp then return end
     
     local height = Deps.Config.get("MobHeight") or 20
-    
     local dist = (mobHRP.Position - hrp.Position).Magnitude
     
     if dist < 8 then
@@ -114,15 +112,6 @@ local function handleQuest()
         return nil
     end
     
-    if not Deps.Quest.isCorrectQuest(quest.mob) then
-        local now = tick()
-        if now - lastAbandonTime > 3 then
-            lastAbandonTime = now
-            Deps.Quest.abandon()
-        end
-        return nil
-    end
-    
     return quest
 end
 
@@ -140,7 +129,7 @@ function FarmLevel.start()
             pcall(function()
                 local quest = handleQuest()
                 if not quest then
-                    task.wait(0.4)
+                    task.wait(0.3)
                     return
                 end
                 
