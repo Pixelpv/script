@@ -67,9 +67,6 @@ UI.init({
 UI.create()
 UI.applySavedConfig()
 
-AFK.start()
-Haki.startBuso()
-Weapon.startAutoEquip()
 
 task.spawn(function()
     local RunService = game:GetService("RunService")
