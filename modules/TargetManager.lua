@@ -3,51 +3,50 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 local TargetManager = {}
-
 local EnemiesFolder = workspace:WaitForChild("Enemies")
 
 local function isValidEnemy(enemy)
-    local humanoid = enemy:FindFirstChildOfClass("Humanoid")
+    if not enemy then return false end
+    local hum = enemy:FindFirstChildOfClass("Humanoid")
     local root = enemy:FindFirstChild("HumanoidRootPart")
-    if not humanoid or not root then return false end
-    if humanoid.Health <= 0 then return false end
+    if not hum or not root then return false end
+    if hum.Health <= 0 then return false end
     if enemy == player.Character then return false end
     if Players:GetPlayerFromCharacter(enemy) then return false end
     return true
 end
 
-local function scanEnemies(origin, maxDistance, nameFilter)
+local function scanEnemies(origin, maxDist, nameFilter)
     if not origin then return nil, math.huge end
-    local nearest, nearestDist = nil, maxDistance or math.huge
+    local nearest, nearestDist = nil, maxDist or math.huge
     local lowerFilter = nameFilter and nameFilter:lower() or nil
 
     for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
         if isValidEnemy(enemy) then
             local root = enemy.HumanoidRootPart
-            local distance = (root.Position - origin).Magnitude
-            if distance < nearestDist then
+            local dist = (root.Position - origin).Magnitude
+            if dist < nearestDist then
                 if not lowerFilter or enemy.Name:lower():find(lowerFilter, 1, true) then
-                    nearestDist = distance
+                    nearestDist = dist
                     nearest = enemy
                 end
             end
         end
     end
-
     return nearest, nearestDist
 end
 
-function TargetManager.findNearest(maxDistance)
+function TargetManager.findNearest(maxDist)
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return nil end
-    return scanEnemies(hrp.Position, maxDistance)
+    return scanEnemies(hrp.Position, maxDist)
 end
 
-function TargetManager.findNearestQuestEnemy(enemyName, maxDistance)
-    if not enemyName then return TargetManager.findNearest(maxDistance) end
+function TargetManager.findNearestQuestEnemy(enemyName, maxDist)
+    if not enemyName then return TargetManager.findNearest(maxDist) end
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return nil end
-    return scanEnemies(hrp.Position, maxDistance, enemyName)
+    return scanEnemies(hrp.Position, maxDist, enemyName)
 end
 
 function TargetManager.getTargetsInRange(range)
@@ -61,10 +60,6 @@ function TargetManager.getTargetsInRange(range)
         end
     end
     return list
-end
-
-TargetManager.GetNearestEnemy = function(origin, maxDistance)
-    return scanEnemies(origin, maxDistance)
 end
 
 return TargetManager
