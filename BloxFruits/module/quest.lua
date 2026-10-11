@@ -2,6 +2,9 @@ local Quest = {}
 
 local Deps = {}
 
+local lastHasQuestTime = 0
+local lastHasQuestState = false
+
 function Quest.init(deps)
     Deps = deps or {}
 end
@@ -54,12 +57,6 @@ function Quest.getCurrentTitle()
     if not title then return nil end
     
     return title.Text
-end
-
-function Quest.isCorrectQuest(mobName)
-    local title = Quest.getCurrentTitle()
-    if not title then return false end
-    return string.find(title, mobName) ~= nil
 end
 
 function Quest.getCurrent()
