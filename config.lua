@@ -1,7 +1,7 @@
 return {
     -- Farm
     autoFarmLevel = false,
-    autoQuest = false,
+    autoQuest = true,
     farmNearest = false,
 
     -- Combate
