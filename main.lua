@@ -35,6 +35,7 @@ NS.QuestManager    = load("modules/QuestManager.lua")
 NS.TargetManager   = load("modules/TargetManager.lua")
 NS.MovementManager = load("modules/MovementManager.lua")
 NS.CombatManager   = load("modules/CombatManager.lua")
+NS.BuffManager     = load("modules/BuffManager.lua")  -- ← NOVO
 NS.StateManager    = load("modules/StateManager.lua")
 
 NS.Logger.log("Módulos carregados")
@@ -42,7 +43,8 @@ NS.Logger.log("Módulos carregados")
 NS.HealthManager.init()
 NS.LevelManager.init()
 NS.QuestManager.init()
-NS.MovementManager.init()  -- ← NOVO: cria o bloco de tween
+NS.MovementManager.init()
+NS.BuffManager.start()  -- ← NOVO: inicia loop de buffs
 NS.StateManager.init()
 
 load("ui/FluentUI.lua")
