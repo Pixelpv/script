@@ -1,4 +1,4 @@
-local BASE_URL = "https://raw.githubusercontent.com/SEU-USUARIO/auto-farm-level/main"
+local BASE_URL = "https://raw.githubusercontent.com/Pixelpv/script/main"
 
 local function loadModule(path)
     local url = BASE_URL .. "/" .. path
