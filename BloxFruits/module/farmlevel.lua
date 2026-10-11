@@ -127,7 +127,7 @@ function FarmLevel.start()
                 continue
             end
             
-            local ok, err = pcall(function()
+            pcall(function()
                 local quest = handleQuest()
                 if not quest then
                     task.wait(0.5)
