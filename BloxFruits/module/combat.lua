@@ -34,25 +34,6 @@ local function getAttackRemotes()
     return net:FindFirstChild("RE/RegisterAttack"), net:FindFirstChild("RE/RegisterHit")
 end
 
-local function equipWeapon()
-    local plr = getPlayer()
-    local char = plr.Character
-    if not char then return end
-    
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    
-    local weaponType = Deps.Config.get("SelectWeapon")
-    if not weaponType then return end
-    
-    for _, tool in ipairs(plr.Backpack:GetChildren()) do
-        if tool:IsA("Tool") and tool.ToolTip == weaponType then
-            hum:EquipTool(tool)
-            return
-        end
-    end
-end
-
 local function getEquippedTool()
     local char = getPlayer().Character
     if not char then return nil end
@@ -66,23 +47,20 @@ local function collectEnemiesInRange(range)
     local enemies = {}
     local basePart = nil
     
-    local function process(folder)
-        if not folder then return end
-        for _, enemy in ipairs(folder:GetChildren()) do
-            local head = enemy:FindFirstChild("Head")
-            local hum = enemy:FindFirstChildOfClass("Humanoid")
-            if head and hum and hum.Health > 0 and enemy ~= getPlayer().Character then
-                local dist = (head.Position - hrp.Position).Magnitude
-                if dist <= range then
-                    table.insert(enemies, { enemy, head })
-                    basePart = head
-                end
+    local enemiesFolder = workspace:FindFirstChild("Enemies")
+    if not enemiesFolder then return {}, nil end
+    
+    for _, enemy in ipairs(enemiesFolder:GetChildren()) do
+        local head = enemy:FindFirstChild("Head")
+        local hum = enemy:FindFirstChildOfClass("Humanoid")
+        if head and hum and hum.Health > 0 then
+            local dist = (head.Position - hrp.Position).Magnitude
+            if dist <= range then
+                table.insert(enemies, { enemy, head })
+                if not basePart then basePart = head end
             end
         end
     end
-    
-    process(workspace:FindFirstChild("Enemies"))
-    process(workspace:FindFirstChild("Characters"))
     
     return enemies, basePart
 end
@@ -160,13 +138,10 @@ end
 
 function Combat.attackMob(mob)
     if not mob or not mob.Parent then return end
-    
     local mobHRP = mob:FindFirstChild("HumanoidRootPart")
     if not mobHRP then return end
     
     local height = Deps.Config.get("MobHeight") or 20
-    
-    equipWeapon()
     Deps.Teleporter.toMob(mob, height)
 end
 
