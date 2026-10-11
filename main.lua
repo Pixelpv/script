@@ -1,9 +1,25 @@
-local BASE_URL = "https://raw.githubusercontent.com/Pixelpv/script/main"
+local BASE_URL = "https://raw.githubusercontent.com/Pixelpv/script/refs/heads/main"
+
+local function httpGet(url)
+    if game.HttpGet then
+        local ok, res = pcall(game.HttpGet, game, url)
+        if ok then return res end
+    end
+    if request then
+        local ok, res = pcall(request, {Url = url, Method = "GET"})
+        if ok and res and res.Body then return res.Body end
+    end
+    if http_request then
+        local ok, res = pcall(http_request, {Url = url, Method = "GET"})
+        if ok and res and res.Body then return res.Body end
+    end
+    return nil
+end
 
 local function loadModule(path)
     local url = BASE_URL .. "/" .. path
-    local ok, src = pcall(game.HttpGet, game, url)
-    if not ok or not src then
+    local src = httpGet(url)
+    if not src then
         error("[AutoFarmLevel] Falha ao baixar: " .. path)
     end
     local fn, err = loadstring(src)
@@ -67,14 +83,16 @@ UI.init({
 UI.create()
 UI.applySavedConfig()
 
-
 task.spawn(function()
     local RunService = game:GetService("RunService")
     RunService.Stepped:Connect(function()
+        if not Config.get("AutoFarmLevel") then return end
         if not Config.get("NoClip") then return end
+        
         local plr = game:GetService("Players").LocalPlayer
         local char = plr.Character
         if not char then return end
+        
         for _, part in ipairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
@@ -85,10 +103,10 @@ end)
 
 game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
-    if Config.get("AutoEquip") then
+    if Config.get("AutoFarmLevel") and Config.get("AutoEquip") then
         Weapon.equip()
     end
-    if Config.get("AutoBusoHaki") then
+    if Config.get("AutoFarmLevel") and Config.get("AutoBusoHaki") then
         Haki.activateBuso()
     end
 end)
