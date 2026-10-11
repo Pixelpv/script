@@ -24,20 +24,10 @@ function LevelManager.getQuestRange()
     local sea = LevelManager.getSea()
     local quests = NS.Data.Quests[sea]
     if not quests then return nil end
-
     for _, q in ipairs(quests) do
-        if lvl >= q.min and lvl <= q.max then
-            return q
-        end
+        if lvl >= q.min and lvl <= q.max then return q end
     end
     return nil
-end
-
-function LevelManager.getIsland(name)
-    local sea = LevelManager.getSea()
-    local islands = NS.Data.Islands[sea]
-    if not islands then return nil end
-    return islands[name]
 end
 
 function LevelManager.onLevelUp(cb) table.insert(LevelManager._onLevelUp, cb) end
