@@ -6,13 +6,11 @@ StateManager.previousState = nil
 StateManager.onEnter = {}
 StateManager.onExit = {}
 
--- ============================================================
--- TRANSIÇÕES VÁLIDAS
--- ============================================================
 StateManager.transitions = {
     STOPPED     = {"STARTING", "RECOVERING"},
-    STARTING    = {"GET_QUEST", "FARMING", "RECOVERING", "STOPPED"},
-    GET_QUEST   = {"FARMING", "RECOVERING", "STOPPED"},
+    STARTING    = {"GET_QUEST", "EQUIP_WEAPON", "FARMING", "RECOVERING", "STOPPED"},
+    GET_QUEST   = {"EQUIP_WEAPON", "FARMING", "RECOVERING", "STOPPED"},
+    EQUIP_WEAPON= {"FARMING", "RECOVERING", "STOPPED"},
     FARMING     = {"STARTING", "RECOVERING", "STOPPED"},
     RECOVERING  = {"STARTING", "STOPPED"},
 }
@@ -50,9 +48,6 @@ function StateManager.getState()
     return StateManager.currentState
 end
 
--- ============================================================
--- HELPERS
--- ============================================================
 local function qualquerFarmAtivo()
     return NS.Config.autoFarmLevel or NS.Config.farmNearest
 end
@@ -64,7 +59,7 @@ local function getModo()
 end
 
 -- ============================================================
--- ESTADO: STOPPED
+-- STOPPED
 -- ============================================================
 StateManager.onEnter["STOPPED"] = function()
     pcall(function()
@@ -74,7 +69,7 @@ StateManager.onEnter["STOPPED"] = function()
 end
 
 -- ============================================================
--- ESTADO: STARTING
+-- STARTING — Ativa buffs, decide próximo passo
 -- ============================================================
 StateManager.onEnter["STARTING"] = function()
     if not qualquerFarmAtivo() then
@@ -82,7 +77,15 @@ StateManager.onEnter["STARTING"] = function()
         return
     end
 
-    -- Se Auto Quest está ligado, checa se precisa pegar quest
+    -- 1. Ativa buffs (Buso, Ken, Race V3/V4)
+    if NS.Config.autoBuso or NS.Config.autoKen 
+    or NS.Config.autoRaceV3 or NS.Config.autoRaceV4 then
+        pcall(function()
+            NS.BuffManager.applyOnce()
+        end)
+    end
+
+    -- 2. Checa se precisa pegar quest
     if NS.Config.autoQuest then
         local quest = NS.LevelManager.getQuestRange()
         if quest and not NS.QuestManager.matchesCurrentQuest(quest) then
@@ -91,11 +94,22 @@ StateManager.onEnter["STARTING"] = function()
         end
     end
 
+    -- 3. Checa se precisa equipar arma
+    if NS.Config.autoEquip then
+        local char = game.Players.LocalPlayer.Character
+        local toolEquipada = char and char:FindFirstChildOfClass("Tool")
+        local tipoAtual = toolEquipada and NS.CombatManager.getToolType(toolEquipada)
+        if tipoAtual ~= NS.Config.selectWeapon then
+            StateManager.setState("EQUIP_WEAPON")
+            return
+        end
+    end
+
     StateManager.setState("FARMING")
 end
 
 -- ============================================================
--- ESTADO: GET_QUEST
+-- GET_QUEST — Aceita a quest
 -- ============================================================
 StateManager.onEnter["GET_QUEST"] = function()
     local quest = NS.LevelManager.getQuestRange()
@@ -103,11 +117,28 @@ StateManager.onEnter["GET_QUEST"] = function()
         NS.QuestManager.acceptQuest(quest)
         task.wait(0.5)
     end
+
+    -- Depois de aceitar, checa se precisa equipar
+    if NS.Config.autoEquip then
+        StateManager.setState("EQUIP_WEAPON")
+    else
+        StateManager.setState("FARMING")
+    end
+end
+
+-- ============================================================
+-- EQUIP_WEAPON — Equipa a arma escolhida
+-- ============================================================
+StateManager.onEnter["EQUIP_WEAPON"] = function()
+    pcall(function()
+        NS.CombatManager.equipWeaponType(NS.Config.selectWeapon)
+    end)
+    task.wait(0.3)
     StateManager.setState("FARMING")
 end
 
 -- ============================================================
--- ESTADO: FARMING (o loop principal)
+-- FARMING — Loop principal
 -- ============================================================
 StateManager.onEnter["FARMING"] = function()
     task.spawn(function()
@@ -121,15 +152,13 @@ StateManager.onEnter["FARMING"] = function()
 
             local enemy, dist
 
-            -- ── MODO LEVEL ──
+            -- Acha mob
             if modo == "level" then
                 local quest = NS.LevelManager.getQuestRange()
                 if quest and quest.enemy then
                     enemy, dist = NS.TargetManager.findNearestQuestEnemy(quest.enemy)
                 end
             end
-
-            -- ── MODO NEAREST ──
             if modo == "nearest" then
                 enemy, dist = NS.TargetManager.findNearest()
             end
@@ -141,44 +170,48 @@ StateManager.onEnter["FARMING"] = function()
                 continue
             end
 
-            NS.Logger.log("Atacando:", enemy.Name, "| modo:", modo, "| dist:", math.floor(dist or 0))
+            local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
+            if not enemyRoot then
+                task.wait(0.2)
+                continue
+            end
 
-            -- 1. BRING MOB: puxa o mob pra baixo de você
+            local hrp = NS.HealthManager.getHRP()
+            if not hrp then
+                task.wait(0.2)
+                continue
+            end
+
+            local distToEnemy = (enemyRoot.Position - hrp.Position).Magnitude
+
+            NS.Logger.log("Atacando:", enemy.Name, "| dist:", math.floor(distToEnemy))
+
+            -- 1. VOAR até o mob (se longe)
+            if distToEnemy > 30 then
+                NS.MovementManager.tp(
+                    enemyRoot.CFrame * CFrame.new(0, NS.Config.farmHeight or 20, 0),
+                    NS.Config.tweenSpeed or 300
+                )
+                task.wait(0.15)
+                continue
+            end
+
+            -- 2. BRING MOB (puxa pra baixo)
             if NS.Config.bringMob then
                 pcall(function()
                     NS.MovementManager.bringMob(enemy)
                 end)
             end
 
-            -- 2. AUTO EQUIP: equipa a arma escolhida
-            if NS.Config.autoEquip then
-                pcall(function()
-                    NS.CombatManager.equipWeaponType(NS.Config.selectWeapon)
-                end)
-            end
+            -- 3. FICAR em cima do mob
+            pcall(function()
+                NS.MovementManager.hoverAbove(
+                    enemyRoot,
+                    NS.Config.farmHeight or 20
+                )
+            end)
 
-            -- 3. MOVIMENTO: sobe em cima do mob (hover)
-            local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
-            if enemyRoot then
-                if NS.Config.hoverEnabled ~= false then
-                    pcall(function()
-                        NS.MovementManager.hoverAbove(
-                            enemyRoot,
-                            NS.Config.farmHeight or 20
-                        )
-                    end)
-                else
-                    pcall(function()
-                        NS.MovementManager.standNear(
-                            enemyRoot,
-                            NS.Config.farmDistance or 25,
-                            NS.Config.farmHeight or 20
-                        )
-                    end)
-                end
-            end
-
-            -- 4. ATAQUE
+            -- 4. ATACAR
             pcall(function()
                 NS.CombatManager.attack()
             end)
@@ -189,7 +222,7 @@ StateManager.onEnter["FARMING"] = function()
 end
 
 -- ============================================================
--- ESTADO: RECOVERING (morreu)
+-- RECOVERING
 -- ============================================================
 StateManager.onEnter["RECOVERING"] = function()
     pcall(function()
@@ -204,19 +237,16 @@ end
 -- INIT
 -- ============================================================
 function StateManager.init()
-    -- Morte
     NS.HealthManager.onDeath(function()
         StateManager.setState("RECOVERING")
     end)
 
-    -- Respawn
     NS.HealthManager.onRespawn(function()
         if qualquerFarmAtivo() then
             StateManager.setState("STARTING")
         end
     end)
 
-    -- Level up
     NS.LevelManager.onLevelUp(function()
         if qualquerFarmAtivo() then
             StateManager.currentState = "FARMING"
@@ -224,12 +254,11 @@ function StateManager.init()
         end
     end)
 
-    -- Kill Aura roda em paralelo
     pcall(function()
         NS.CombatManager.startKillAura()
     end)
 
-    -- Watchdog: reinicia se cair em STOPPED sem razão
+    -- Watchdog: reinicia se travar em STOPPED
     task.spawn(function()
         while true do
             task.wait(2)
@@ -241,7 +270,7 @@ function StateManager.init()
         end
     end)
 
-    -- Watchdog 2: limpa hover se farm desligou
+    -- Watchdog: limpa hover se farm desligou
     task.spawn(function()
         while true do
             task.wait(0.5)
