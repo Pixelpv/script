@@ -45,7 +45,6 @@ local function qualquerFarmAtivo()
     return NS.Config.autoFarmLevel or NS.Config.farmNearest
 end
 
--- Decide qual modo usar (mutuamente exclusivo)
 local function getModo()
     if NS.Config.autoFarmLevel then return "level" end
     if NS.Config.farmNearest then return "nearest" end
@@ -64,7 +63,6 @@ StateManager.onEnter["STARTING"] = function()
         return
     end
 
-    -- Auto Quest só age se Auto Quest estiver ligado
     if NS.Config.autoQuest then
         local quest = NS.LevelManager.getQuestRange()
         if quest and not NS.QuestManager.matchesCurrentQuest(quest) then
@@ -103,10 +101,6 @@ StateManager.onEnter["FARMING"] = function()
                 if quest and quest.enemy then
                     enemy, dist = NS.TargetManager.findNearestQuestEnemy(quest.enemy)
                 end
-                -- Se a quest não tem mob definido, cai pro nearest só pra não travar
-                if not enemy then
-                    enemy, dist = NS.TargetManager.findNearest()
-                end
             end
 
             -- ── MODO NEAREST ──
@@ -115,7 +109,7 @@ StateManager.onEnter["FARMING"] = function()
             end
 
             if not enemy then
-                NS.Logger.log("Nenhum mob disponível...")
+                NS.Logger.log("Nenhum mob da quest disponível...")
                 task.wait(0.5)
                 continue
             end
