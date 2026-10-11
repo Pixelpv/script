@@ -5,27 +5,34 @@ local player = Players.LocalPlayer
 
 local QuestManager = {}
 
+local function getCommF()
+    local R = ReplicatedStorage:FindFirstChild("Remotes")
+    return R and R:FindFirstChild("CommF_")
+end
+
 function QuestManager.hasActiveQuest()
-    local ok, result = pcall(function()
+    local ok, res = pcall(function()
         return player.PlayerGui.Main.Quest.Visible
     end)
-    return ok and result
+    return ok and res
 end
 
 function QuestManager.getActiveQuestName()
-    local ok, result = pcall(function()
+    local ok, res = pcall(function()
         if player.PlayerGui.Main.Quest.Visible then
-            return player.PlayerGui.Main.Quest.Title.Text
+            return player.PlayerGui.Main.Quest.Container.QuestTitle.Title.Text
         end
     end)
-    return ok and result or nil
+    return ok and res or nil
 end
 
 function QuestManager.acceptQuest(questData)
     if not questData then return false end
+    local CommF = getCommF()
+    if not CommF then return false end
+
     local ok, err = pcall(function()
-        ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
-            :InvokeServer("StartQuest", questData.quest, questData.num)
+        CommF:InvokeServer("StartQuest", questData.quest, questData.num)
     end)
     if not ok then
         NS.Logger.warn("Falha ao aceitar quest:", err)
@@ -34,14 +41,7 @@ function QuestManager.acceptQuest(questData)
     return true
 end
 
-function QuestManager.matchesCurrentQuest(questData)
-    if not QuestManager.hasActiveQuest() then return false end
-    if not questData then return false end
-    local title = QuestManager.getActiveQuestName()
-    if not title then return false end
-    return title:lower():find(questData.enemy:lower()) ~= nil
-end
-
-function QuestManager.init() end
-
-return QuestManager
+function QuestManager.abandonQuest()
+    local CommF = getCommF()
+    if not CommF then return end
+    pcall(function() CommF:InvokeServer("
