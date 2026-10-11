@@ -25,7 +25,6 @@ NS.Config = load("config.lua")
 NS.Data          = NS.Data or {}
 NS.Data.Quests   = load("data/quests.lua")
 NS.Data.Islands  = load("data/islands.lua")
-NS.Data.Tools    = load("data/tools.lua")
 
 NS.Logger = load("modules/Logger.lua")
 
@@ -35,7 +34,7 @@ NS.QuestManager    = load("modules/QuestManager.lua")
 NS.TargetManager   = load("modules/TargetManager.lua")
 NS.MovementManager = load("modules/MovementManager.lua")
 NS.CombatManager   = load("modules/CombatManager.lua")
-NS.BuffManager     = load("modules/BuffManager.lua")  -- ← NOVO
+NS.BuffManager     = load("modules/BuffManager.lua")
 NS.StateManager    = load("modules/StateManager.lua")
 
 NS.Logger.log("Módulos carregados")
@@ -44,7 +43,7 @@ NS.HealthManager.init()
 NS.LevelManager.init()
 NS.QuestManager.init()
 NS.MovementManager.init()
-NS.BuffManager.start()  -- ← NOVO: inicia loop de buffs
+NS.BuffManager.start()
 NS.StateManager.init()
 
 load("ui/FluentUI.lua")
