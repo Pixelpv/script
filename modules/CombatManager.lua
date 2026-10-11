@@ -8,9 +8,10 @@ local player = Players.LocalPlayer
 local CombatManager = {}
 CombatManager._auraRunning = false
 CombatManager._lastEquip = 0
+CombatManager._lastAttackLog = 0
 
 -- ============================================================
--- REMOTES DE ATAQUE
+-- REMOTES
 -- ============================================================
 local function getAttackRemotes()
     local Modules = ReplicatedStorage:FindFirstChild("Modules")
@@ -26,16 +27,11 @@ end
 -- ============================================================
 local function getToolType(tool)
     if not tool or not tool:IsA("Tool") then return nil end
-
-    -- ToolTip é o mais confiável
     local tip = tool:FindFirstChild("ToolTip")
     if tip then return tip.Value end
-
-    -- Attribute
     local attr = tool:GetAttribute("WeaponType")
     if attr then return attr end
 
-    -- Fallback: nome
     local nome = tool.Name:lower()
     if nome:find("sword") or nome:find("katana") or nome:find("blade")
     or nome:find("saber") or nome:find("cutlass") or nome:find("bisento")
@@ -45,22 +41,18 @@ local function getToolType(tool)
     or nome:find("kabucha") or nome:find("dark blade") then
         return "Sword"
     end
-
     if nome:find("gun") or nome:find("pistol") or nome:find("rifle")
     or nome:find("musket") or nome:find("cannon") or nome:find("slingshot")
     or nome:find("flintlock") or nome:find("bow") then
         return "Gun"
     end
-
     if nome:find("fruit") then return "Blox Fruit" end
-
     return "Melee"
 end
-
 CombatManager.getToolType = getToolType
 
 -- ============================================================
--- AUTO EQUIP (corrigido)
+-- EQUIP
 -- ============================================================
 function CombatManager.equipWeaponType(tipoDesejado)
     if not tipoDesejado then return false end
@@ -73,7 +65,7 @@ function CombatManager.equipWeaponType(tipoDesejado)
     local backpack = player:FindFirstChild("Backpack")
     if not backpack then return false end
 
-    -- Já tem a tool certa equipada?
+    -- Já equipada?
     local equipada = char:FindFirstChildOfClass("Tool")
     if equipada and getToolType(equipada) == tipoDesejado then
         CombatManager._lastEquip = tick()
@@ -90,27 +82,12 @@ function CombatManager.equipWeaponType(tipoDesejado)
         end
     end
 
-    -- Fallback: se for Melee, tenta qualquer tool que não seja Sword/Gun/Fruit
-    if tipoDesejado == "Melee" then
-        for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                local tipo = getToolType(tool)
-                if tipo == "Melee" or tipo == nil then
-                    hum:EquipTool(tool)
-                    CombatManager._lastEquip = tick()
-                    NS.Logger.log("Equipado (fallback):", tool.Name)
-                    return true
-                end
-            end
-        end
-    end
-
     CombatManager._lastEquip = tick()
     return false
 end
 
 -- ============================================================
--- ATAQUE VIA REMOTE
+-- ATTACK VIA REMOTE
 -- ============================================================
 function CombatManager.attackRemote(range)
     range = range or 50
@@ -146,7 +123,7 @@ function CombatManager.attackRemote(range)
 end
 
 -- ============================================================
--- ATAQUE FALLBACK
+-- ATTACK VIRTUAL (fallback)
 -- ============================================================
 function CombatManager.attackVirtual()
     VirtualUser:CaptureController()
@@ -154,16 +131,18 @@ function CombatManager.attackVirtual()
 end
 
 -- ============================================================
--- ATAQUE PRINCIPAL
+-- ATTACK PRINCIPAL
 -- ============================================================
 function CombatManager.attack()
-    if NS.Config.autoEquip and NS.Config.selectWeapon then
-        CombatManager.equipWeaponType(NS.Config.selectWeapon)
-    end
-
-    local sucesso = CombatManager.attackRemote(NS.Config.farmRange or 50)
+    local sucesso = CombatManager.attackRemote(NS.Config.farmRange or 60)
     if not sucesso then
         CombatManager.attackVirtual()
+    end
+
+    -- Log a cada 5s pra saber se tá batendo
+    if tick() - CombatManager._lastAttackLog > 5 then
+        CombatManager._lastAttackLog = tick()
+        NS.Logger.log("Attack: remote=", tostring(sucesso))
     end
 end
 
@@ -188,12 +167,11 @@ end
 function CombatManager.startKillAura()
     if CombatManager._auraRunning then return end
     CombatManager._auraRunning = true
-
     task.spawn(function()
         while CombatManager._auraRunning do
             task.wait(NS.Config.attackDelay)
             if not NS.Config.killAura then continue end
-            local targets = NS.TargetManager.getTargetsInRange(NS.Config.farmRange or 50)
+            local targets = NS.TargetManager.getTargetsInRange(NS.Config.farmRange or 60)
             for _, mob in ipairs(targets) do
                 CombatManager.attack()
             end
@@ -206,7 +184,7 @@ function CombatManager.stopKillAura()
 end
 
 -- ============================================================
--- AUTO SKILL LOOP
+-- AUTO SKILL
 -- ============================================================
 task.spawn(function()
     while true do
