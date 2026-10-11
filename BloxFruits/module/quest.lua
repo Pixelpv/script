@@ -17,20 +17,31 @@ end
 
 function Quest.hasQuest()
     local plr = getPlayer()
-    local questGui = plr:FindFirstChild("PlayerGui")
-    if not questGui then return false end
-    local main = questGui:FindFirstChild("Main")
+    if not plr then return false end
+    local pg = plr:FindFirstChild("PlayerGui")
+    if not pg then return false end
+    local main = pg:FindFirstChild("Main")
     if not main then return false end
     local quest = main:FindFirstChild("Quest")
     if not quest then return false end
-    return quest.Visible
+    if not quest.Visible then return false end
+    
+    local container = quest:FindFirstChild("Container")
+    if not container then return false end
+    local questTitle = container:FindFirstChild("QuestTitle")
+    if not questTitle then return false end
+    local title = questTitle:FindFirstChild("Title")
+    if not title or title.Text == "" then return false end
+    
+    return true
 end
 
 function Quest.getCurrentTitle()
     local plr = getPlayer()
-    local questGui = plr:FindFirstChild("PlayerGui")
-    if not questGui then return nil end
-    local main = questGui:FindFirstChild("Main")
+    if not plr then return nil end
+    local pg = plr:FindFirstChild("PlayerGui")
+    if not pg then return nil end
+    local main = pg:FindFirstChild("Main")
     if not main then return nil end
     local quest = main:FindFirstChild("Quest")
     if not quest or not quest.Visible then return nil end
@@ -59,6 +70,8 @@ function Quest.getCurrent()
 end
 
 function Quest.accept()
+    if Quest.hasQuest() then return false end
+    
     local quest = Quest.getCurrent()
     if not quest then return false end
     
