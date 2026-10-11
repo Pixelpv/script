@@ -13,8 +13,10 @@ return {
     farmHeight = 20,
     tweenSpeed = 300,
     attackDelay = 0.1,
+    bringRange = 235,
+    maxBringMobs = 3,
 
-    -- Buffs (NOVO)
+    -- Buffs
     autoBuso = true,
     autoKen = false,
     autoRaceV3 = false,
@@ -28,6 +30,8 @@ return {
     -- Coleta
     autoCollectFruit = false,
     autoCollectTool = false,
+    autoCollectChest = false,
+    autoCollectBerry = false,
     collectRange = 300,
 
     -- Voo
