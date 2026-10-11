@@ -44,4 +44,17 @@ end
 function QuestManager.abandonQuest()
     local CommF = getCommF()
     if not CommF then return end
-    pcall(function() CommF:InvokeServer("
+    pcall(function() CommF:InvokeServer("AbandonQuest") end)
+end
+
+function QuestManager.matchesCurrentQuest(questData)
+    if not QuestManager.hasActiveQuest() then return false end
+    if not questData then return false end
+    local title = QuestManager.getActiveQuestName()
+    if not title then return false end
+    return title:lower():find(questData.enemy:lower(), 1, true) ~= nil
+end
+
+function QuestManager.init() end
+
+return QuestManager
