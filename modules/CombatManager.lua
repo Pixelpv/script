@@ -1,6 +1,7 @@
 local NS = getgenv().AutoFarmBF
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
@@ -9,59 +10,49 @@ CombatManager._auraRunning = false
 CombatManager._lastEquip = 0
 
 -- ============================================================
--- REMOTES DE ATAQUE (descoberta dos hubs)
+-- REMOTES DE ATAQUE
 -- ============================================================
 local function getAttackRemotes()
     local Modules = ReplicatedStorage:FindFirstChild("Modules")
     if not Modules then return nil, nil end
     local Net = Modules:FindFirstChild("Net")
     if not Net then return nil, nil end
-    local RegisterAttack = Net:FindFirstChild("RE/RegisterAttack")
-    local RegisterHit = Net:FindFirstChild("RE/RegisterHit")
-    return RegisterAttack, RegisterHit
+    return Net:FindFirstChild("RE/RegisterAttack"),
+           Net:FindFirstChild("RE/RegisterHit")
 end
 
 -- ============================================================
--- MAPEAMENTO DE TIPO DE ARMA
+-- TIPO DE ARMA
 -- ============================================================
-local WEAPON_TYPE_MAP = {
-    Sword        = "Sword",
-    Melee        = "Melee",
-    Gun          = "Gun",
-    ["Blox Fruit"] = "Blox Fruit",
-}
-
 local function getToolType(tool)
     if not tool or not tool:IsA("Tool") then return nil end
 
-    local attr = tool:GetAttribute("WeaponType")
-    if attr then return attr end
-
+    -- ToolTip é o mais confiável
     local tip = tool:FindFirstChild("ToolTip")
     if tip then return tip.Value end
 
+    -- Attribute
+    local attr = tool:GetAttribute("WeaponType")
+    if attr then return attr end
+
+    -- Fallback: nome
     local nome = tool.Name:lower()
-    if nome:find("sword") or nome:find("katana") 
-    or nome:find("blade") or nome:find("saber")
-    or nome:find("cutlass") or nome:find("bisento")
-    or nome:find("trident") or nome:find("dagger")
-    or nome:find("scythe") or nome:find("wando")
-    or nome:find("yama") or nome:find("tushita") 
-    or nome:find("shisui") or nome:find("rengoku") 
-    or nome:find("koko") or nome:find("kabucha") then
+    if nome:find("sword") or nome:find("katana") or nome:find("blade")
+    or nome:find("saber") or nome:find("cutlass") or nome:find("bisento")
+    or nome:find("trident") or nome:find("dagger") or nome:find("scythe")
+    or nome:find("wando") or nome:find("yama") or nome:find("tushita")
+    or nome:find("shisui") or nome:find("rengoku") or nome:find("koko")
+    or nome:find("kabucha") or nome:find("dark blade") then
         return "Sword"
     end
 
-    if nome:find("gun") or nome:find("pistol") 
-    or nome:find("rifle") or nome:find("musket")
-    or nome:find("cannon") or nome:find("slingshot")
+    if nome:find("gun") or nome:find("pistol") or nome:find("rifle")
+    or nome:find("musket") or nome:find("cannon") or nome:find("slingshot")
     or nome:find("flintlock") or nome:find("bow") then
         return "Gun"
     end
 
-    if nome:find("fruit") then
-        return "Blox Fruit"
-    end
+    if nome:find("fruit") then return "Blox Fruit" end
 
     return "Melee"
 end
@@ -69,38 +60,57 @@ end
 CombatManager.getToolType = getToolType
 
 -- ============================================================
--- EQUIPAR ARMA DO TIPO SELECIONADO
+-- AUTO EQUIP (corrigido)
 -- ============================================================
 function CombatManager.equipWeaponType(tipoDesejado)
-    if not tipoDesejado then return end
-    if tick() - CombatManager._lastEquip < 2 then return end
+    if not tipoDesejado then return false end
+    if tick() - CombatManager._lastEquip < 1.5 then return false end
 
     local char = player.Character
-    if not char then return end
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
     local backpack = player:FindFirstChild("Backpack")
-    if not backpack then return end
+    if not backpack then return false end
 
-    for _, tool in ipairs(char:GetChildren()) do
+    -- Já tem a tool certa equipada?
+    local equipada = char:FindFirstChildOfClass("Tool")
+    if equipada and getToolType(equipada) == tipoDesejado then
+        CombatManager._lastEquip = tick()
+        return true
+    end
+
+    -- Procura no backpack
+    for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") and getToolType(tool) == tipoDesejado then
+            hum:EquipTool(tool)
             CombatManager._lastEquip = tick()
-            return
+            NS.Logger.log("Equipado:", tool.Name, "(", tipoDesejado, ")")
+            return true
         end
     end
 
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") and getToolType(tool) == tipoDesejado then
-            tool.Parent = char
-            CombatManager._lastEquip = tick()
-            NS.Logger.log("Equipado:", tool.Name, "(", tipoDesejado, ")")
-            return
+    -- Fallback: se for Melee, tenta qualquer tool que não seja Sword/Gun/Fruit
+    if tipoDesejado == "Melee" then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                local tipo = getToolType(tool)
+                if tipo == "Melee" or tipo == nil then
+                    hum:EquipTool(tool)
+                    CombatManager._lastEquip = tick()
+                    NS.Logger.log("Equipado (fallback):", tool.Name)
+                    return true
+                end
+            end
         end
     end
 
     CombatManager._lastEquip = tick()
+    return false
 end
 
 -- ============================================================
--- ATAQUE VIA REMOTE (RegisterAttack + RegisterHit)
+-- ATAQUE VIA REMOTE
 -- ============================================================
 function CombatManager.attackRemote(range)
     range = range or 50
@@ -136,16 +146,15 @@ function CombatManager.attackRemote(range)
 end
 
 -- ============================================================
--- ATAQUE FALLBACK (VirtualUser - para casos onde o remote falha)
+-- ATAQUE FALLBACK
 -- ============================================================
 function CombatManager.attackVirtual()
-    local VirtualUser = game:GetService("VirtualUser")
     VirtualUser:CaptureController()
     VirtualUser:ClickButton1(Vector2.new(0, 0))
 end
 
 -- ============================================================
--- ATAQUE PRINCIPAL (tenta remote, cai pra virtual se falhar)
+-- ATAQUE PRINCIPAL
 -- ============================================================
 function CombatManager.attack()
     if NS.Config.autoEquip and NS.Config.selectWeapon then
@@ -153,7 +162,6 @@ function CombatManager.attack()
     end
 
     local sucesso = CombatManager.attackRemote(NS.Config.farmRange or 50)
-
     if not sucesso then
         CombatManager.attackVirtual()
     end
@@ -185,16 +193,8 @@ function CombatManager.startKillAura()
         while CombatManager._auraRunning do
             task.wait(NS.Config.attackDelay)
             if not NS.Config.killAura then continue end
-
             local targets = NS.TargetManager.getTargetsInRange(NS.Config.farmRange or 50)
             for _, mob in ipairs(targets) do
-                if NS.Config.autoEquip then
-                    CombatManager.equipWeaponType(NS.Config.selectWeapon)
-                end
-                if NS.Config.bringMob then
-                    NS.MovementManager.bringMob(mob)
-                end
-                NS.MovementManager.hoverAbove(mob.HumanoidRootPart, NS.Config.farmHeight)
                 CombatManager.attack()
             end
         end
@@ -213,9 +213,7 @@ task.spawn(function()
         task.wait(NS.Config.skillDelay or 0.8)
         if not NS.Config.autoSkill then continue end
         local enemy = NS.TargetManager.findNearest()
-        if enemy then
-            CombatManager.useAllSkills()
-        end
+        if enemy then CombatManager.useAllSkills() end
     end
 end)
 
