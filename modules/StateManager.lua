@@ -8,9 +8,7 @@ StateManager.onExit = {}
 
 StateManager.transitions = {
     STOPPED     = {"STARTING", "RECOVERING"},
-    STARTING    = {"GET_QUEST", "EQUIP_WEAPON", "FARMING", "RECOVERING", "STOPPED"},
-    GET_QUEST   = {"EQUIP_WEAPON", "FARMING", "RECOVERING", "STOPPED"},
-    EQUIP_WEAPON= {"FARMING", "RECOVERING", "STOPPED"},
+    STARTING    = {"FARMING", "RECOVERING", "STOPPED"},
     FARMING     = {"STARTING", "RECOVERING", "STOPPED"},
     RECOVERING  = {"STARTING", "STOPPED"},
 }
@@ -30,15 +28,12 @@ function StateManager.setState(newState)
         NS.Logger.log("Transição bloqueada:", StateManager.currentState, "->", newState)
         return
     end
-
     if StateManager.onExit[StateManager.currentState] then
         pcall(StateManager.onExit[StateManager.currentState])
     end
-
     StateManager.previousState = StateManager.currentState
     StateManager.currentState = newState
     NS.Logger.log("Estado:", StateManager.previousState, "->", newState)
-
     if StateManager.onEnter[newState] then
         pcall(StateManager.onEnter[newState])
     end
@@ -69,7 +64,7 @@ StateManager.onEnter["STOPPED"] = function()
 end
 
 -- ============================================================
--- STARTING — Ativa buffs, decide próximo passo
+-- STARTING — Ativa buffs e vai pro FARMING
 -- ============================================================
 StateManager.onEnter["STARTING"] = function()
     if not qualquerFarmAtivo() then
@@ -77,7 +72,7 @@ StateManager.onEnter["STARTING"] = function()
         return
     end
 
-    -- 1. Ativa buffs (Buso, Ken, Race V3/V4)
+    -- Ativa buffs uma vez
     if NS.Config.autoBuso or NS.Config.autoKen 
     or NS.Config.autoRaceV3 or NS.Config.autoRaceV4 then
         pcall(function()
@@ -85,55 +80,6 @@ StateManager.onEnter["STARTING"] = function()
         end)
     end
 
-    -- 2. Checa se precisa pegar quest
-    if NS.Config.autoQuest then
-        local quest = NS.LevelManager.getQuestRange()
-        if quest and not NS.QuestManager.matchesCurrentQuest(quest) then
-            StateManager.setState("GET_QUEST")
-            return
-        end
-    end
-
-    -- 3. Checa se precisa equipar arma
-    if NS.Config.autoEquip then
-        local char = game.Players.LocalPlayer.Character
-        local toolEquipada = char and char:FindFirstChildOfClass("Tool")
-        local tipoAtual = toolEquipada and NS.CombatManager.getToolType(toolEquipada)
-        if tipoAtual ~= NS.Config.selectWeapon then
-            StateManager.setState("EQUIP_WEAPON")
-            return
-        end
-    end
-
-    StateManager.setState("FARMING")
-end
-
--- ============================================================
--- GET_QUEST — Aceita a quest
--- ============================================================
-StateManager.onEnter["GET_QUEST"] = function()
-    local quest = NS.LevelManager.getQuestRange()
-    if quest then
-        NS.QuestManager.acceptQuest(quest)
-        task.wait(0.5)
-    end
-
-    -- Depois de aceitar, checa se precisa equipar
-    if NS.Config.autoEquip then
-        StateManager.setState("EQUIP_WEAPON")
-    else
-        StateManager.setState("FARMING")
-    end
-end
-
--- ============================================================
--- EQUIP_WEAPON — Equipa a arma escolhida
--- ============================================================
-StateManager.onEnter["EQUIP_WEAPON"] = function()
-    pcall(function()
-        NS.CombatManager.equipWeaponType(NS.Config.selectWeapon)
-    end)
-    task.wait(0.3)
     StateManager.setState("FARMING")
 end
 
@@ -142,6 +88,9 @@ end
 -- ============================================================
 StateManager.onEnter["FARMING"] = function()
     task.spawn(function()
+        local lastQuestCheck = 0
+        local lastEquipCheck = 0
+
         while StateManager.currentState == "FARMING" do
 
             local modo = getModo()
@@ -150,9 +99,34 @@ StateManager.onEnter["FARMING"] = function()
                 return
             end
 
+            -- ============================================
+            -- VERIFICA QUEST A CADA 3s
+            -- ============================================
+            if NS.Config.autoQuest and (tick() - lastQuestCheck > 3) then
+                lastQuestCheck = tick()
+                local quest = NS.LevelManager.getQuestRange()
+                if quest and not NS.QuestManager.matchesCurrentQuest(quest) then
+                    NS.Logger.log("Quest desatualizada, re-aceitando...")
+                    NS.QuestManager.acceptQuest(quest)
+                    task.wait(0.5)
+                end
+            end
+
+            -- ============================================
+            -- VERIFICA ARMA A CADA 2s
+            -- ============================================
+            if NS.Config.autoEquip and (tick() - lastEquipCheck > 2) then
+                lastEquipCheck = tick()
+                pcall(function()
+                    NS.CombatManager.equipWeaponType(NS.Config.selectWeapon)
+                end)
+            end
+
+            -- ============================================
+            -- ACHA MOB
+            -- ============================================
             local enemy, dist
 
-            -- Acha mob
             if modo == "level" then
                 local quest = NS.LevelManager.getQuestRange()
                 if quest and quest.enemy then
@@ -171,47 +145,48 @@ StateManager.onEnter["FARMING"] = function()
             end
 
             local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
-            if not enemyRoot then
-                task.wait(0.2)
-                continue
-            end
-
             local hrp = NS.HealthManager.getHRP()
-            if not hrp then
+            if not enemyRoot or not hrp then
                 task.wait(0.2)
                 continue
             end
 
             local distToEnemy = (enemyRoot.Position - hrp.Position).Magnitude
 
-            NS.Logger.log("Atacando:", enemy.Name, "| dist:", math.floor(distToEnemy))
-
-            -- 1. VOAR até o mob (se longe)
+            -- ============================================
+            -- DIST > 30: VOA ATÉ O MOB
+            -- ============================================
             if distToEnemy > 30 then
-                NS.MovementManager.tp(
-                    enemyRoot.CFrame * CFrame.new(0, NS.Config.farmHeight or 20, 0),
-                    NS.Config.tweenSpeed or 300
-                )
-                task.wait(0.15)
+                NS.MovementManager.stopHover()
+                pcall(function()
+                    NS.MovementManager.tp(
+                        enemyRoot.CFrame * CFrame.new(0, NS.Config.farmHeight or 20, 0),
+                        NS.Config.tweenSpeed or 300
+                    )
+                end)
+                task.wait(0.2)
                 continue
             end
 
-            -- 2. BRING MOB (puxa pra baixo)
+            -- ============================================
+            -- DIST <= 30: BRING MOB + ATTACK
+            -- ============================================
+            NS.Logger.log("Atacando:", enemy.Name, "| dist:", math.floor(distToEnemy))
+
+            -- 1. Bring Mob: puxa o mob pra baixo de você
             if NS.Config.bringMob then
                 pcall(function()
                     NS.MovementManager.bringMob(enemy)
                 end)
             end
 
-            -- 3. FICAR em cima do mob
+            -- 2. Fica em cima (CFrame direto, SEM BodyPosition)
             pcall(function()
-                NS.MovementManager.hoverAbove(
-                    enemyRoot,
-                    NS.Config.farmHeight or 20
-                )
+                local targetPos = enemyRoot.Position + Vector3.new(0, NS.Config.farmHeight or 20, 0)
+                hrp.CFrame = CFrame.new(targetPos)
             end)
 
-            -- 4. ATACAR
+            -- 3. Ataca
             pcall(function()
                 NS.CombatManager.attack()
             end)
@@ -258,7 +233,6 @@ function StateManager.init()
         NS.CombatManager.startKillAura()
     end)
 
-    -- Watchdog: reinicia se travar em STOPPED
     task.spawn(function()
         while true do
             task.wait(2)
@@ -270,7 +244,6 @@ function StateManager.init()
         end
     end)
 
-    -- Watchdog: limpa hover se farm desligou
     task.spawn(function()
         while true do
             task.wait(0.5)
