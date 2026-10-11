@@ -120,11 +120,6 @@ function UI.buildConfigTab(Fluent, Window)
 
     autoEquipToggle:OnChanged(function(value)
         Deps.Config.set("AutoEquip", value)
-        if value then
-            Deps.Weapon.startAutoEquip()
-        else
-            Deps.Weapon.stopAutoEquip()
-        end
     end)
 
     local bringMobToggle = Tab:AddToggle("BringMob", {
@@ -145,11 +140,6 @@ function UI.buildConfigTab(Fluent, Window)
 
     fastAttackToggle:OnChanged(function(value)
         Deps.Config.set("FastAttack", value)
-        if value then
-            Deps.Combat.fastAttack()
-        else
-            Deps.Combat.stopFastAttack()
-        end
     end)
 
     local autoClickToggle = Tab:AddToggle("AutoClick", {
@@ -160,11 +150,6 @@ function UI.buildConfigTab(Fluent, Window)
 
     autoClickToggle:OnChanged(function(value)
         Deps.Config.set("AutoClick", value)
-        if value then
-            Deps.Combat.autoClick()
-        else
-            Deps.Combat.stopAutoClick()
-        end
     end)
 
     local noClipToggle = Tab:AddToggle("NoClip", {
@@ -199,23 +184,21 @@ function UI.buildConfigTab(Fluent, Window)
 end
 
 function UI.applySavedConfig()
-    if Deps.Config.get("AutoEquip") and Deps.Weapon then
-        Deps.Weapon.startAutoEquip()
+    if Deps.FarmLevel then
+        Deps.FarmLevel.start()
     end
-    if Deps.Config.get("FastAttack") and Deps.Combat then
+    if Deps.Combat then
         Deps.Combat.fastAttack()
-    end
-    if Deps.Config.get("AutoClick") and Deps.Combat then
         Deps.Combat.autoClick()
     end
-    if Deps.Config.get("AutoBusoHaki") and Deps.Haki then
-        Deps.Haki.startBuso()
+    if Deps.Weapon then
+        Deps.Weapon.startAutoEquip()
     end
-    if Deps.Config.get("AntiAFK") and Deps.AFK then
+    if Deps.AFK then
         Deps.AFK.start()
     end
-    if Deps.Config.get("AutoFarmLevel") and Deps.FarmLevel then
-        Deps.FarmLevel.start()
+    if Deps.Haki then
+        Deps.Haki.startBuso()
     end
 end
 
