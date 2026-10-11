@@ -10,15 +10,11 @@ MovementManager._block = nil
 MovementManager._followConn = nil
 MovementManager._flyConn = nil
 MovementManager._flyBV = nil
-MovementManager._shouldTween = false
 
 MovementManager.TweenSpeedFar = 300
 MovementManager.TweenSpeedNear = 900
 MovementManager.TweenNearThreshold = 90
 
--- ============================================================
--- INIT
--- ============================================================
 function MovementManager.init()
     local char = player.Character
     if char then
@@ -60,9 +56,6 @@ function MovementManager.init()
     end
 end
 
--- ============================================================
--- TWEEN SUAVE (voar até o alvo)
--- ============================================================
 function MovementManager.tp(targetCFrame, speed)
     if not MovementManager._block then MovementManager.init() end
     local hrp = NS.HealthManager.getHRP()
@@ -72,26 +65,13 @@ function MovementManager.tp(targetCFrame, speed)
     speed = speed or (dist <= MovementManager.TweenNearThreshold
         and MovementManager.TweenSpeedNear or MovementManager.TweenSpeedFar)
 
-    MovementManager._shouldTween = true
-
     local duration = math.max(dist / speed, 0.05)
     local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
     local tween = TweenService:Create(MovementManager._block, info, { CFrame = targetCFrame })
     tween:Play()
-
-    task.spawn(function()
-        while tween.PlaybackState == Enum.PlaybackState.Playing do
-            task.wait(0.1)
-        end
-        MovementManager._shouldTween = false
-    end)
-
     return tween
 end
 
--- ============================================================
--- TELEPORTE INSTANTÂNEO
--- ============================================================
 function MovementManager.teleportTo(position)
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return end
@@ -101,9 +81,6 @@ function MovementManager.teleportTo(position)
     hrp.CFrame = CFrame.new(position)
 end
 
--- ============================================================
--- HOVER (só pra compatibilidade, não é mais usado no FARMING)
--- ============================================================
 function MovementManager.hoverAbove(target, height)
     if not target then return end
     local hrp = NS.HealthManager.getHRP()
@@ -112,36 +89,25 @@ function MovementManager.hoverAbove(target, height)
     hrp.CFrame = CFrame.new(pos)
 end
 
-function MovementManager.stopHover()
-    -- Não faz nada agora, mas mantém a API pra não quebrar nada
-end
+function MovementManager.stopHover() end
 
--- ============================================================
--- BRING MOB (puxa o mob pra baixo de você)
--- ============================================================
 function MovementManager.bringMob(mob)
     if not mob then return end
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return end
-
     local mobHrp = mob:FindFirstChild("HumanoidRootPart")
     local hum = mob:FindFirstChild("Humanoid")
     if not mobHrp or not hum then return end
 
     mobHrp.CFrame = CFrame.new(hrp.Position)
-    mobHrp.CanCollide = false
+    mobHrp.CanCollide = true
     hum.WalkSpeed = 0
     hum.JumpPower = 0
-
-    local animator = hum:FindFirstChild("Animator")
-    if animator then
-        pcall(function() animator:Destroy() end)
-    end
+    local anim = hum:FindFirstChild("Animator")
+    if anim then pcall(function() anim:Destroy() end) end
+    pcall(function() sethiddenproperty(player, "SimulationRadius", math.huge) end)
 end
 
--- ============================================================
--- ASCEND / DESCEND
--- ============================================================
 function MovementManager.ascend(studs)
     local hrp = NS.HealthManager.getHRP()
     if hrp then hrp.CFrame = hrp.CFrame + Vector3.new(0, studs or 50, 0) end
@@ -152,9 +118,6 @@ function MovementManager.descend(studs)
     if hrp then hrp.CFrame = hrp.CFrame - Vector3.new(0, studs or 50, 0) end
 end
 
--- ============================================================
--- FLY
--- ============================================================
 function MovementManager.startFly()
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return end
