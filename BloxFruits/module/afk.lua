@@ -21,6 +21,7 @@ function AFK.start()
     if not plr then return end
     
     idledConn = plr.Idled:Connect(function()
+        if not Deps.Config.get("AutoFarmLevel") then return end
         if not Deps.Config.get("AntiAFK") then return end
         
         local vu = game:GetService("VirtualUser")
