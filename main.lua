@@ -20,40 +20,31 @@ local function load(path)
     return result
 end
 
--- 1. Config
 NS.Config = load("config.lua")
 
--- 2. Data
 NS.Data          = NS.Data or {}
 NS.Data.Quests   = load("data/quests.lua")
 NS.Data.Islands  = load("data/islands.lua")
 NS.Data.Tools    = load("data/tools.lua")
 
--- 3. Logger (agora seguro, porque temos Config)
 NS.Logger = load("modules/Logger.lua")
 
--- 4. Core
 NS.HealthManager   = load("modules/HealthManager.lua")
 NS.LevelManager    = load("modules/LevelManager.lua")
 NS.QuestManager    = load("modules/QuestManager.lua")
-
--- 5. Dependem de core
 NS.TargetManager   = load("modules/TargetManager.lua")
 NS.MovementManager = load("modules/MovementManager.lua")
 NS.CombatManager   = load("modules/CombatManager.lua")
-
--- 6. Coordenador
 NS.StateManager    = load("modules/StateManager.lua")
 
 NS.Logger.log("Módulos carregados")
 
--- Init (ordem importa)
 NS.HealthManager.init()
 NS.LevelManager.init()
 NS.QuestManager.init()
+NS.MovementManager.init()  -- ← NOVO: cria o bloco de tween
 NS.StateManager.init()
 
--- UI
 load("ui/FluentUI.lua")
 
 NS.Logger.log("Sistema inicializado")
