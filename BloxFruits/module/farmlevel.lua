@@ -5,6 +5,8 @@ local Deps = {}
 local farmThread = nil
 local farmRunning = false
 local currentMob = nil
+local lastAcceptTime = 0
+local lastAbandonTime = 0
 
 function FarmLevel.init(deps)
     Deps = deps or {}
@@ -18,13 +20,6 @@ local function getHRP()
     local plr = getPlayer()
     local char = plr.Character
     return char and char:FindFirstChild("HumanoidRootPart")
-end
-
-local function getLevel()
-    local plr = getPlayer()
-    if not plr or not plr:FindFirstChild("Data") then return 1 end
-    local lvl = plr.Data:FindFirstChild("Level")
-    return lvl and lvl.Value or 1
 end
 
 local function bringMobs(quest)
@@ -84,27 +79,37 @@ local function handleQuest()
     local quest = Deps.Quest.getCurrent()
     if not quest then return nil end
     
-    if not Deps.Quest.hasQuest() then
-        if Deps.Config.get("AutoQuest") then
-            local hrp = getHRP()
-            if hrp and quest.npcPos then
-                local dist = (hrp.Position - quest.npcPos.Position).Magnitude
-                if dist > 15 then
-                    Deps.Teleporter.toPosition(quest.npcPos)
-                    return nil
-                else
-                    task.wait(1)
-                    Deps.Quest.accept()
-                    return nil
-                end
-            end
+    local hasQuest = Deps.Quest.hasQuest()
+    
+    if not hasQuest then
+        if not Deps.Config.get("AutoQuest") then
+            return nil
+        end
+        
+        local hrp = getHRP()
+        if not hrp or not quest.npcPos then return nil end
+        
+        local dist = (hrp.Position - quest.npcPos.Position).Magnitude
+        
+        if dist > 15 then
+            Deps.Teleporter.toPosition(quest.npcPos)
+            return nil
+        end
+        
+        local now = tick()
+        if now - lastAcceptTime > 3 then
+            lastAcceptTime = now
+            Deps.Quest.accept()
         end
         return nil
     end
     
     if not Deps.Quest.isCorrectQuest(quest.mob) then
-        Deps.Quest.abandon()
-        task.wait(0.5)
+        local now = tick()
+        if now - lastAbandonTime > 3 then
+            lastAbandonTime = now
+            Deps.Quest.abandon()
+        end
         return nil
     end
     
@@ -122,7 +127,7 @@ function FarmLevel.start()
                 continue
             end
             
-            pcall(function()
+            local ok, err = pcall(function()
                 local quest = handleQuest()
                 if not quest then
                     task.wait(0.5)
