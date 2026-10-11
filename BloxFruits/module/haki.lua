@@ -47,14 +47,21 @@ function Haki.startBuso()
     
     busoThread = task.spawn(function()
         while busoRunning do
-            if Deps.Config.get("AutoBusoHaki") then
-                local char = getChar()
-                if char then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then
-                        if not Haki.hasBuso() then
-                            Haki.activateBuso()
-                        end
+            if not Deps.Config.get("AutoFarmLevel") then
+                task.wait(0.5)
+                continue
+            end
+            if not Deps.Config.get("AutoBusoHaki") then
+                task.wait(0.5)
+                continue
+            end
+            
+            local char = getChar()
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    if not Haki.hasBuso() then
+                        Haki.activateBuso()
                     end
                 end
             end
