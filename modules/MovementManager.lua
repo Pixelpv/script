@@ -7,90 +7,75 @@ local player = Players.LocalPlayer
 
 local MovementManager = {}
 MovementManager._block = nil
+MovementManager._followConn = nil
+MovementManager._hoverBP = nil
 MovementManager._flyConn = nil
 MovementManager._flyBV = nil
-MovementManager._hoverBP = nil
-MovementManager._followConn = nil
 MovementManager._shouldTween = false
 
--- ============================================================
--- CONFIGURAÇÕES DE TWEEN
--- ============================================================
 MovementManager.TweenSpeedFar = 300
 MovementManager.TweenSpeedNear = 900
 MovementManager.TweenNearThreshold = 90
 
 -- ============================================================
--- INICIALIZAÇÃO (cria o bloco invisível)
+-- INICIALIZAÇÃO
 -- ============================================================
 function MovementManager.init()
-    if MovementManager._block and MovementManager._block.Parent then
-        return
-    end
-
-    local old = workspace:FindFirstChild("AutoFarmBF_Block")
-    if old then old:Destroy() end
-
-    local block = Instance.new("Part")
-    block.Name = "AutoFarmBF_Block"
-    block.Size = Vector3.new(1, 1, 1)
-    block.Anchored = true
-    block.CanCollide = false
-    block.CanTouch = false
-    block.CanQuery = false
-    block.Transparency = 1
-    block.Parent = workspace
-
-    MovementManager._block = block
-
-    -- Character segue o bloco
-    MovementManager._followConn = RunService.Stepped:Connect(function()
-        local hrp = NS.HealthManager.getHRP()
-        if not hrp or not MovementManager._block then return end
-
-        local blockPos = MovementManager._block.Position
-        local hrpPos = hrp.Position
-        local dist = (hrpPos - blockPos).Magnitude
-
-        if dist <= 200 then
-            hrp.CFrame = MovementManager._block.CFrame
-        else
-            MovementManager._block.CFrame = hrp.CFrame
-        end
-    end)
-
-    -- Noclip enquanto tweena
-    RunService.Stepped:Connect(function()
-        if MovementManager._shouldTween then
-            local char = player.Character
-            if char then
-                for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+    -- Limpa BodyMovers residuais
+    local char = player.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            for _, obj in ipairs(hrp:GetChildren()) do
+                if obj.Name == "AutoFarmHover" or obj.Name == "AutoFarmFly" then
+                    obj:Destroy()
                 end
             end
         end
-    end)
+    end
 
-    NS.Logger.log("MovementManager: bloco de tween criado")
+    -- Cria o bloco de tween
+    if not MovementManager._block or not MovementManager._block.Parent then
+        local old = workspace:FindFirstChild("AutoFarmBF_Block")
+        if old then old:Destroy() end
+
+        local block = Instance.new("Part")
+        block.Name = "AutoFarmBF_Block"
+        block.Size = Vector3.new(1, 1, 1)
+        block.Anchored = true
+        block.CanCollide = false
+        block.CanTouch = false
+        block.CanQuery = false
+        block.Transparency = 1
+        block.Parent = workspace
+        MovementManager._block = block
+
+        MovementManager._followConn = RunService.Stepped:Connect(function()
+            local hrp = NS.HealthManager.getHRP()
+            if not hrp or not MovementManager._block then return end
+            local dist = (hrp.Position - MovementManager._block.Position).Magnitude
+            if dist <= 200 then
+                hrp.CFrame = MovementManager._block.CFrame
+            else
+                MovementManager._block.CFrame = hrp.CFrame
+            end
+        end)
+
+        NS.Logger.log("MovementManager: bloco criado")
+    end
 end
 
 -- ============================================================
--- TELEPORTE SUAVE (Tween)
+-- TWEEN SUAVE
 -- ============================================================
 function MovementManager.tp(targetCFrame, speed)
-    if not MovementManager._block then
-        MovementManager.init()
-    end
-
+    if not MovementManager._block then MovementManager.init() end
     local hrp = NS.HealthManager.getHRP()
     if not hrp or not MovementManager._block then return end
 
     local dist = (targetCFrame.Position - hrp.Position).Magnitude
-    speed = speed or (dist <= MovementManager.TweenNearThreshold 
-        and MovementManager.TweenSpeedNear 
-        or MovementManager.TweenSpeedFar)
+    speed = speed or (dist <= MovementManager.TweenNearThreshold
+        and MovementManager.TweenSpeedNear or MovementManager.TweenSpeedFar)
 
     MovementManager._shouldTween = true
 
@@ -110,12 +95,12 @@ function MovementManager.tp(targetCFrame, speed)
 end
 
 -- ============================================================
--- TELEPORTE INSTANTÂNEO (fallback)
+-- TELEPORTE INSTANTÂNEO
 -- ============================================================
 function MovementManager.teleportTo(position)
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return end
-
+    MovementManager.stopHover()
     if MovementManager._block then
         MovementManager._block.CFrame = CFrame.new(position)
     end
@@ -123,7 +108,7 @@ function MovementManager.teleportTo(position)
 end
 
 -- ============================================================
--- HOVER ACIMA DO ALVO
+-- HOVER ACIMA DO MOB (fica parado em cima)
 -- ============================================================
 function MovementManager.hoverAbove(target, height)
     if not target then return end
@@ -131,25 +116,27 @@ function MovementManager.hoverAbove(target, height)
     local hrp = NS.HealthManager.getHRP()
     if not hrp then return end
 
-    if MovementManager._hoverBP then
-        MovementManager._hoverBP:Destroy()
+    local pos = (target.Position or target) + Vector3.new(0, height or 20, 0)
+
+    -- Reutiliza o BodyPosition se já existir
+    if not MovementManager._hoverBP or MovementManager._hoverBP.Parent ~= hrp then
+        if MovementManager._hoverBP then
+            MovementManager._hoverBP:Destroy()
+        end
+        local bp = Instance.new("BodyPosition")
+        bp.Name = "AutoFarmHover"
+        bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bp.P = 50000
+        bp.D = 1000
+        bp.Parent = hrp
+        MovementManager._hoverBP = bp
     end
 
-    local pos = (target.Position or target) + Vector3.new(0, height or 25, 0)
-
-    local bp = Instance.new("BodyPosition")
-    bp.Name = "AutoFarmHover"
-    bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bp.P = 50000
-    bp.D = 1000
-    bp.Position = pos
-    bp.Parent = hrp
-
-    MovementManager._hoverBP = bp
+    MovementManager._hoverBP.Position = pos
 end
 
 -- ============================================================
--- STAND NEAR (ficar na frente do mob)
+-- STAND NEAR
 -- ============================================================
 function MovementManager.standNear(target, distance, height)
     if not target then return end
@@ -169,7 +156,7 @@ function MovementManager.standNear(target, distance, height)
 end
 
 -- ============================================================
--- BRING MOB (puxa o mob pra você)
+-- BRING MOB (puxa pra baixo do personagem)
 -- ============================================================
 function MovementManager.bringMob(mob)
     if not mob then return end
@@ -180,14 +167,17 @@ function MovementManager.bringMob(mob)
     local hum = mob:FindFirstChild("Humanoid")
     if not mobHrp or not hum then return end
 
+    -- Puxa pra EXATAMENTE a posição do jogador (embaixo dele)
     mobHrp.CFrame = CFrame.new(hrp.Position)
+    mobHrp.CanCollide = false
     hum.WalkSpeed = 0
     hum.JumpPower = 0
-    mobHrp.CanCollide = true
 
-    pcall(function()
-        sethiddenproperty(player, "SimulationRadius", math.huge)
-    end)
+    -- Desativa Animator pra evitar que o mob "ande" sozinho
+    local animator = hum:FindFirstChild("Animator")
+    if animator then
+        pcall(function() animator:Destroy() end)
+    end
 end
 
 -- ============================================================
@@ -205,20 +195,16 @@ end
 -- ============================================================
 function MovementManager.ascend(studs)
     local hrp = NS.HealthManager.getHRP()
-    if hrp then
-        hrp.CFrame = hrp.CFrame + Vector3.new(0, studs or 50, 0)
-    end
+    if hrp then hrp.CFrame = hrp.CFrame + Vector3.new(0, studs or 50, 0) end
 end
 
 function MovementManager.descend(studs)
     local hrp = NS.HealthManager.getHRP()
-    if hrp then
-        hrp.CFrame = hrp.CFrame - Vector3.new(0, studs or 50, 0)
-    end
+    if hrp then hrp.CFrame = hrp.CFrame - Vector3.new(0, studs or 50, 0) end
 end
 
 -- ============================================================
--- FLY MANUAL
+-- FLY
 -- ============================================================
 function MovementManager.startFly()
     local hrp = NS.HealthManager.getHRP()
@@ -262,13 +248,15 @@ function MovementManager.stopFly()
 end
 
 -- ============================================================
--- REQUEST ENTRANCE (para ilhas especiais)
+-- WATCHDOG: limpa hover se farm não está ativo
 -- ============================================================
-function MovementManager.requestEntrance(position)
-    pcall(function()
-        local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-        Remotes.CommF_:InvokeServer("requestEntrance", position)
-    end)
-end
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if not NS.Config.autoFarmLevel and not NS.Config.farmNearest then
+            MovementManager.stopHover()
+        end
+    end
+end)
 
 return MovementManager
