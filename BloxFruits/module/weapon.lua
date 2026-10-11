@@ -101,7 +101,10 @@ function Weapon.startAutoEquip()
     
     autoEquipThread = task.spawn(function()
         while autoEquipRunning do
-            if Deps.Config.get("AutoEquip") then
+            local farmOn = Deps.Config.get("AutoFarmLevel")
+            local equipOn = Deps.Config.get("AutoEquip")
+            
+            if farmOn and equipOn then
                 local weaponType = Deps.Config.get("SelectWeapon")
                 if weaponType then
                     local equipped = Weapon.getEquipped()
