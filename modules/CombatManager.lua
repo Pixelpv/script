@@ -1,12 +1,25 @@
 local NS = getgenv().AutoFarmBF
 local Players = game:GetService("Players")
-local VirtualUser = game:GetService("VirtualUser")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
 local CombatManager = {}
 CombatManager._auraRunning = false
 CombatManager._lastEquip = 0
+
+-- ============================================================
+-- REMOTES DE ATAQUE (descoberta dos hubs)
+-- ============================================================
+local function getAttackRemotes()
+    local Modules = ReplicatedStorage:FindFirstChild("Modules")
+    if not Modules then return nil, nil end
+    local Net = Modules:FindFirstChild("Net")
+    if not Net then return nil, nil end
+    local RegisterAttack = Net:FindFirstChild("RE/RegisterAttack")
+    local RegisterHit = Net:FindFirstChild("RE/RegisterHit")
+    return RegisterAttack, RegisterHit
+end
 
 -- ============================================================
 -- MAPEAMENTO DE TIPO DE ARMA
@@ -18,31 +31,24 @@ local WEAPON_TYPE_MAP = {
     ["Blox Fruit"] = "Blox Fruit",
 }
 
--- ============================================================
--- DETECTA O TIPO DE UMA TOOL
--- ============================================================
 local function getToolType(tool)
     if not tool or not tool:IsA("Tool") then return nil end
 
-    -- Método 1: Attribute "WeaponType"
     local attr = tool:GetAttribute("WeaponType")
     if attr then return attr end
 
-    -- Método 2: ToolTip
     local tip = tool:FindFirstChild("ToolTip")
     if tip then return tip.Value end
 
-    -- Método 3: Nome da tool
     local nome = tool.Name:lower()
     if nome:find("sword") or nome:find("katana") 
     or nome:find("blade") or nome:find("saber")
     or nome:find("cutlass") or nome:find("bisento")
     or nome:find("trident") or nome:find("dagger")
-    or nome:find("scythe") or nome:find("scythe")
-    or nome:find("wando") or nome:find("yama")
-    or nome:find("tushita") or nome:find("shisui")
-    or nome:find("rengoku") or nome:find("koko")
-    or nome:find("kabucha") then
+    or nome:find("scythe") or nome:find("wando")
+    or nome:find("yama") or nome:find("tushita") 
+    or nome:find("shisui") or nome:find("rengoku") 
+    or nome:find("koko") or nome:find("kabucha") then
         return "Sword"
     end
 
@@ -67,7 +73,6 @@ CombatManager.getToolType = getToolType
 -- ============================================================
 function CombatManager.equipWeaponType(tipoDesejado)
     if not tipoDesejado then return end
-    -- Cooldown de 2 segundos para não floodar
     if tick() - CombatManager._lastEquip < 2 then return end
 
     local char = player.Character
@@ -75,7 +80,6 @@ function CombatManager.equipWeaponType(tipoDesejado)
     local backpack = player:FindFirstChild("Backpack")
     if not backpack then return end
 
-    -- Já tem a tool certa equipada?
     for _, tool in ipairs(char:GetChildren()) do
         if tool:IsA("Tool") and getToolType(tool) == tipoDesejado then
             CombatManager._lastEquip = tick()
@@ -83,7 +87,6 @@ function CombatManager.equipWeaponType(tipoDesejado)
         end
     end
 
-    -- Procura no backpack
     for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") and getToolType(tool) == tipoDesejado then
             tool.Parent = char
@@ -97,20 +100,62 @@ function CombatManager.equipWeaponType(tipoDesejado)
 end
 
 -- ============================================================
--- ATAQUE
+-- ATAQUE VIA REMOTE (RegisterAttack + RegisterHit)
+-- ============================================================
+function CombatManager.attackRemote(range)
+    range = range or 50
+    local hrp = NS.HealthManager.getHRP()
+    if not hrp then return false end
+
+    local RegisterAttack, RegisterHit = getAttackRemotes()
+    if not RegisterAttack or not RegisterHit then return false end
+
+    local enemies = {}
+    local basePart = nil
+
+    for _, mob in ipairs(workspace.Enemies:GetChildren()) do
+        local hum = mob:FindFirstChild("Humanoid")
+        local head = mob:FindFirstChild("Head")
+        if hum and head and hum.Health > 0 then
+            local dist = (head.Position - hrp.Position).Magnitude
+            if dist < range then
+                table.insert(enemies, { mob, head })
+                basePart = head
+            end
+        end
+    end
+
+    if basePart and #enemies > 0 then
+        local ok = pcall(function()
+            RegisterAttack:FireServer(0)
+            RegisterHit:FireServer(basePart, enemies)
+        end)
+        return ok
+    end
+    return false
+end
+
+-- ============================================================
+-- ATAQUE FALLBACK (VirtualUser - para casos onde o remote falha)
+-- ============================================================
+function CombatManager.attackVirtual()
+    local VirtualUser = game:GetService("VirtualUser")
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton1(Vector2.new(0, 0))
+end
+
+-- ============================================================
+-- ATAQUE PRINCIPAL (tenta remote, cai pra virtual se falhar)
 -- ============================================================
 function CombatManager.attack()
     if NS.Config.autoEquip and NS.Config.selectWeapon then
         CombatManager.equipWeaponType(NS.Config.selectWeapon)
     end
 
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton1(Vector2.new(0, 0))
+    local sucesso = CombatManager.attackRemote(NS.Config.farmRange or 50)
 
-    -- Fast Attack: clicks extras
-    if NS.Config.fastAttack then
-        VirtualUser:ClickButton1(Vector2.new(0, 0))
-        VirtualUser:ClickButton1(Vector2.new(0, 0))
+    if not sucesso then
+        CombatManager.attackVirtual()
     end
 end
 
@@ -141,7 +186,7 @@ function CombatManager.startKillAura()
             task.wait(NS.Config.attackDelay)
             if not NS.Config.killAura then continue end
 
-            local targets = NS.TargetManager.getTargetsInRange(NS.Config.farmRange)
+            local targets = NS.TargetManager.getTargetsInRange(NS.Config.farmRange or 50)
             for _, mob in ipairs(targets) do
                 if NS.Config.autoEquip then
                     CombatManager.equipWeaponType(NS.Config.selectWeapon)
@@ -149,10 +194,7 @@ function CombatManager.startKillAura()
                 if NS.Config.bringMob then
                     NS.MovementManager.bringMob(mob)
                 end
-                NS.MovementManager.hoverAbove(
-                    mob.HumanoidRootPart,
-                    NS.Config.farmHeight
-                )
+                NS.MovementManager.hoverAbove(mob.HumanoidRootPart, NS.Config.farmHeight)
                 CombatManager.attack()
             end
         end
@@ -164,13 +206,13 @@ function CombatManager.stopKillAura()
 end
 
 -- ============================================================
--- AUTO SKILL LOOP (se ativado)
+-- AUTO SKILL LOOP
 -- ============================================================
 task.spawn(function()
     while true do
         task.wait(NS.Config.skillDelay or 0.8)
         if not NS.Config.autoSkill then continue end
-        local enemy = NS.TargetManager.findNearest(60)
+        local enemy = NS.TargetManager.findNearest()
         if enemy then
             CombatManager.useAllSkills()
         end
