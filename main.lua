@@ -1,51 +1,115 @@
-local BASE = "https://raw.githubusercontent.com/Pixelpv/script/main/"
+local BASE_URL = "https://raw.githubusercontent.com/SEU-USUARIO/auto-farm-level/main"
 
-getgenv().AutoFarmBF = getgenv().AutoFarmBF or {}
-local NS = getgenv().AutoFarmBF
-
-local function load(path)
-    local url = BASE .. path
-    local ok, src = pcall(function() return game:HttpGet(url) end)
-    if not ok or not src or #src == 0 then
-        error("[AutoFarm] HTTP falhou: " .. path)
+local function loadModule(path)
+    local url = BASE_URL .. "/" .. path
+    local ok, src = pcall(game.HttpGet, game, url)
+    if not ok or not src then
+        error("[AutoFarmLevel] Falha ao baixar: " .. path)
     end
     local fn, err = loadstring(src)
     if not fn then
-        error("[AutoFarm] Syntax error em " .. path .. ": " .. tostring(err))
+        error("[AutoFarmLevel] Erro ao compilar " .. path .. ": " .. tostring(err))
     end
-    local ok2, result = pcall(fn)
-    if not ok2 then
-        error("[AutoFarm] Runtime error em " .. path .. ": " .. tostring(result))
-    end
-    return result
+    return fn()
 end
 
-NS.Config = load("config.lua")
+if getgenv().AutoFarmLevel and getgenv().AutoFarmLevel.Loaded then
+    if getgenv().AutoFarmLevel.UI and getgenv().AutoFarmLevel.UI.Window then
+        pcall(function()
+            getgenv().AutoFarmLevel.UI.Window:Destroy()
+        end)
+    end
+end
 
-NS.Data          = NS.Data or {}
-NS.Data.Quests   = load("data/quests.lua")
-NS.Data.Islands  = load("data/islands.lua")
+local Config = loadModule("BloxFruits/config.lua")
+local Quests = loadModule("BloxFruits/data/quests.lua")
 
-NS.Logger = load("modules/Logger.lua")
+Config.load()
 
-NS.HealthManager   = load("modules/HealthManager.lua")
-NS.LevelManager    = load("modules/LevelManager.lua")
-NS.QuestManager    = load("modules/QuestManager.lua")
-NS.TargetManager   = load("modules/TargetManager.lua")
-NS.MovementManager = load("modules/MovementManager.lua")
-NS.CombatManager   = load("modules/CombatManager.lua")
-NS.BuffManager     = load("modules/BuffManager.lua")
-NS.StateManager    = load("modules/StateManager.lua")
+local Quest = loadModule("BloxFruits/module/quest.lua")
+local Detector = loadModule("BloxFruits/module/detector.lua")
+local Teleporter = loadModule("BloxFruits/module/teleporter.lua")
+local Combat = loadModule("BloxFruits/module/combat.lua")
+local Weapon = loadModule("BloxFruits/module/weapon.lua")
+local AFK = loadModule("BloxFruits/module/afk.lua")
+local Haki = loadModule("BloxFruits/module/haki.lua")
+local FarmLevel = loadModule("BloxFruits/module/farmlevel.lua")
+local UI = loadModule("BloxFruits/ui.lua")
 
-NS.Logger.log("Módulos carregados")
+Quest.init({ Quests = Quests, Config = Config })
+Detector.init({ Config = Config })
+Teleporter.init({ Config = Config })
+Combat.init({ Config = Config, Teleporter = Teleporter })
+Weapon.init({ Config = Config })
+AFK.init({ Config = Config })
+Haki.init({ Config = Config })
+FarmLevel.init({
+    Config = Config,
+    Quest = Quest,
+    Detector = Detector,
+    Teleporter = Teleporter,
+    Combat = Combat,
+    Weapon = Weapon,
+})
 
-NS.HealthManager.init()
-NS.LevelManager.init()
-NS.QuestManager.init()
-NS.MovementManager.init()
-NS.BuffManager.start()
-NS.StateManager.init()
+UI.init({
+    Config = Config,
+    Quest = Quest,
+    Detector = Detector,
+    Teleporter = Teleporter,
+    Combat = Combat,
+    Weapon = Weapon,
+    AFK = AFK,
+    Haki = Haki,
+    FarmLevel = FarmLevel,
+})
 
-load("ui/FluentUI.lua")
+UI.create()
+UI.applySavedConfig()
 
-NS.Logger.log("Sistema inicializado")
+AFK.start()
+Haki.startBuso()
+Weapon.startAutoEquip()
+
+task.spawn(function()
+    local RunService = game:GetService("RunService")
+    RunService.Stepped:Connect(function()
+        if not Config.get("NoClip") then return end
+        local plr = game:GetService("Players").LocalPlayer
+        local char = plr.Character
+        if not char then return end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end)
+
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    if Config.get("AutoEquip") then
+        Weapon.equip()
+    end
+    if Config.get("AutoBusoHaki") then
+        Haki.activateBuso()
+    end
+end)
+
+getgenv().AutoFarmLevel = {
+    Loaded = true,
+    Config = Config,
+    Quests = Quests,
+    Quest = Quest,
+    Detector = Detector,
+    Teleporter = Teleporter,
+    Combat = Combat,
+    Weapon = Weapon,
+    AFK = AFK,
+    Haki = Haki,
+    FarmLevel = FarmLevel,
+    UI = UI,
+    Version = "1.0.0",
+}
+
+print("[AutoFarmLevel] v1.0.0 carregado com sucesso")
