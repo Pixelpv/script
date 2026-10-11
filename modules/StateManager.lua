@@ -45,6 +45,13 @@ local function qualquerFarmAtivo()
     return NS.Config.autoFarmLevel or NS.Config.farmNearest
 end
 
+-- Decide qual modo usar (mutuamente exclusivo)
+local function getModo()
+    if NS.Config.autoFarmLevel then return "level" end
+    if NS.Config.farmNearest then return "nearest" end
+    return nil
+end
+
 -- ============================================================
 -- ESTADOS
 -- ============================================================
@@ -57,7 +64,7 @@ StateManager.onEnter["STARTING"] = function()
         return
     end
 
-    -- Auto Quest agora serve pra qualquer modo de farm
+    -- Auto Quest só age se Auto Quest estiver ligado
     if NS.Config.autoQuest then
         local quest = NS.LevelManager.getQuestRange()
         if quest and not NS.QuestManager.matchesCurrentQuest(quest) then
@@ -82,26 +89,29 @@ StateManager.onEnter["FARMING"] = function()
     task.spawn(function()
         while StateManager.currentState == "FARMING" do
 
-            if not qualquerFarmAtivo() then
+            local modo = getModo()
+            if not modo then
                 StateManager.setState("STOPPED")
                 return
             end
 
-            local enemy, dist, modo
+            local enemy, dist
 
-            -- ── PRIORIDADE 1: Farm Level ──
-            if NS.Config.autoFarmLevel then
+            -- ── MODO LEVEL ──
+            if modo == "level" then
                 local quest = NS.LevelManager.getQuestRange()
                 if quest and quest.enemy then
                     enemy, dist = NS.TargetManager.findNearestQuestEnemy(quest.enemy)
-                    modo = "level"
+                end
+                -- Se a quest não tem mob definido, cai pro nearest só pra não travar
+                if not enemy then
+                    enemy, dist = NS.TargetManager.findNearest()
                 end
             end
 
-            -- ── PRIORIDADE 2: Farm Nearest ──
-            if not enemy and NS.Config.farmNearest then
+            -- ── MODO NEAREST ──
+            if modo == "nearest" then
                 enemy, dist = NS.TargetManager.findNearest()
-                modo = "nearest"
             end
 
             if not enemy then
