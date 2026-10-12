@@ -2,8 +2,9 @@ local Quest = {}
 
 local Deps = {}
 
-local lastHasQuestTime = 0
-local lastHasQuestState = false
+local accepting = false
+local lastAcceptedQuest = nil
+local lastAcceptedTime = 0
 
 function Quest.init(deps)
     Deps = deps or {}
@@ -66,20 +67,57 @@ function Quest.getCurrent()
     return Deps.Quests.getByLevel(level)
 end
 
+function Quest.isAccepting()
+    return accepting
+end
+
+function Quest.wasRecentlyAccepted(seconds)
+    seconds = seconds or 5
+    return (tick() - lastAcceptedTime) < seconds
+end
+
 function Quest.accept()
-    if Quest.hasQuest() then return false end
-    
+    if accepting then
+        return false
+    end
+
+    if Quest.hasQuest() then
+        return false
+    end
+
     local quest = Quest.getCurrent()
     if not quest then return false end
-    
+
     local CommF = getQuestModule()
     if not CommF then return false end
-    
-    local ok = pcall(function()
-        CommF:InvokeServer("StartQuest", quest.questName, quest.questId)
+
+    accepting = true
+
+    local ok, response = pcall(function()
+        return CommF:InvokeServer("StartQuest", quest.questName, quest.questId)
     end)
-    
-    return ok
+
+    if not ok then
+        accepting = false
+        return false
+    end
+
+    local confirmed = false
+    local timeout = tick() + 3
+
+    while tick() < timeout do
+        if Quest.hasQuest() then
+            confirmed = true
+            break
+        end
+        task.wait(0.1)
+    end
+
+    accepting = false
+    lastAcceptedQuest = quest.questName
+    lastAcceptedTime = tick()
+
+    return confirmed
 end
 
 function Quest.abandon()
