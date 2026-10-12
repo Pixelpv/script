@@ -5,7 +5,6 @@ local Deps = {}
 local farmThread = nil
 local farmRunning = false
 local currentMob = nil
-local lastAcceptTime = 0
 local lastBringTime = 0
 
 function FarmLevel.init(deps)
@@ -88,31 +87,33 @@ end
 local function handleQuest()
     local quest = Deps.Quest.getCurrent()
     if not quest then return nil end
-    
-    local hasQuest = Deps.Quest.hasQuest()
-    
-    if not hasQuest then
-        if not Deps.Config.get("AutoQuest") then return nil end
-        
-        local hrp = getHRP()
-        if not hrp or not quest.npcPos then return nil end
-        
-        local dist = (hrp.Position - quest.npcPos.Position).Magnitude
-        
-        if dist > 15 then
-            Deps.Teleporter.toPosition(quest.npcPos)
-            return nil
-        end
-        
-        local now = tick()
-        if now - lastAcceptTime > 3 then
-            lastAcceptTime = now
-            Deps.Quest.accept()
-        end
+
+    if Deps.Quest.hasQuest() then
+        return quest
+    end
+
+    if Deps.Quest.isAccepting() then
         return nil
     end
-    
-    return quest
+
+    if Deps.Quest.wasRecentlyAccepted(5) then
+        return nil
+    end
+
+    if not Deps.Config.get("AutoQuest") then return nil end
+
+    local hrp = getHRP()
+    if not hrp or not quest.npcPos then return nil end
+
+    local dist = (hrp.Position - quest.npcPos.Position).Magnitude
+
+    if dist > 15 then
+        Deps.Teleporter.toPosition(quest.npcPos)
+        return nil
+    end
+
+    Deps.Quest.accept()
+    return nil
 end
 
 function FarmLevel.start()
